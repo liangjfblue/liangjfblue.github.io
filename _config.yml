@@ -7,7 +7,7 @@ description: "我明白到这世上没有那么多如果."
 keyword: "Liangjf, Liangjf Blog, 梁杰帆的博客, LiangJieFan, 梁杰帆, Linux, Data mining, C/Python"
 url: "https://liangjfblue.github.io/"          # your host, for absolute URL
 baseurl: ""      # for example, '/blog' if your blog hosted on 'host/blog'
-github_repo: "https://github.com/qiubaiying/liangjfblue.github.io.git" # you code repository
+github_repo: "https://github.com/liangjfblue" # you code repository
 
 # Sidebar settings
 sidebar: true                           # whether or not using Sidebar.
@@ -99,16 +99,7 @@ service-worker: true
 # Friends
 friends: [
     {
-        title: "WY",
-        href: "http://zhengwuyang.com"
-    },{
         title: "简书·BY",
-        href: "http://www.jianshu.com/u/e71990ada2fd"
-    },{
-        title: "Apple",
-        href: "https://apple.com"
-    },{
-        title: "Apple Developer",
-        href: "https://developer.apple.com/"
+        href: "https://www.jianshu.com/users/1b33b299e866"
     }
 ]
