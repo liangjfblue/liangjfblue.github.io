@@ -97,9 +97,9 @@ service-worker: true
 
 
 # Friends
-friends: [
-    {
-        title: "简书·Liangjf",
-        href: "https://www.jianshu.com/users/1b33b299e866"
-    }
-]
+#friends: [
+#    {
+ #       title: "简书·Liangjf",
+#        href: "https://www.jianshu.com/users/1b33b299e866"
+#    }
+#]
