@@ -1,0 +1,397 @@
+---
+layout:     post                  
+title:      docker
+subtitle:   gin+docker+阿里云
+date:       2019-08-11          
+author:     Liangjf                  
+header-img: img/post_bg_89.jpg
+catalog: true                      
+tags:                       
+    - docker
+---
+
+# gin+docker+阿里云
+
+## 原理：多阶段构建打包，创建最小go容器。
+- build阶段
+- 打ca证书阶段（涉及到认证的话）
+- 生产阶段pull构建最小镜像
+
+## 0、gin+docker例子
+
+源代码在[github](https://github.com/liangjfblue/docker-all/tree/master/gin-docker)
+
+	liangjf@blue:~/ljf_home/code/go_home/project/gin-docker$ tree -L 3
+	.
+	├── Dockerfile
+	└── gin-docker
+	    ├── go.mod
+	    └── main.go
+
+> main.go源文件
+
+	package main
+  
+	import (
+            	"net/http"
+            	"github.com/gin-gonic/gin"
+	)
+
+	func main() {
+        	router := gin.Default()
+        	router.GET("/hello/:name", func(c *gin.Context) {
+                	name := c.Param("name")
+	                c.JSON(http.StatusOK, map[string]interface{}{"hello":name})
+        	})
+	        router.Run(":8090")
+	}
+
+
+> go.mod
+
+这里，我们是通过go mod方式（注意，这里的编译得到的可执行文件是根据 ```go.mod``` 的```gin-docker```， 也就是```go mod init xxx``` ```xxx```就是编译后的可执行文件名字。和```CMD ["./gin-docker"]```有关）
+
+	go mod init gin-docker
+
+
+
+## 1、查看现有镜像
+
+	liangjf@blue:~/ljf_home/code/go_home/project/gin-docker$ sudo docker images
+	REPOSITORY          TAG                 IMAGE ID            CREATED             SIZE
+	golang              1.12                be63d15101cb        3 weeks ago         814MB
+	alpine              latest              b7b28af77ffe        4 weeks ago         5.58MB
+	hello-world         latest              fce289e99eb9        7 months ago        1.84kB
+
+
+## 2、build镜像阶段
+
+	liangjf@blue:~/ljf_home/code/go_home/project/gin-docker$ sudo docker build -t liangjf/gin-docker .
+	Sending build context to Docker daemon  4.608kB
+	Step 1/10 : FROM golang:1.12 AS build
+	 ---> be63d15101cb
+	Step 2/10 : RUN mkdir -p /go/src/gin-docker
+	 ---> Running in d6cd180ecdfb
+	Removing intermediate container d6cd180ecdfb
+	 ---> 0139ad863e9a
+	Step 3/10 : WORKDIR     /go/src/gin-docker
+	 ---> Running in 65d0f96f77d0
+	Removing intermediate container 65d0f96f77d0
+	 ---> bbe0cec53344
+	Step 4/10 : ADD ./gin-docker/ .
+	 ---> 0862fa8ac5b0
+	Step 5/10 : ENV GOPATH=/go
+	 ---> Running in d3335ccdf88b
+	Removing intermediate container d3335ccdf88b
+	 ---> b525c72ea408
+	Step 6/10 : ENV GOROOT=/usr/local/go
+	 ---> Running in 84a8e987f425
+	Removing intermediate container 84a8e987f425
+	 ---> d3b6712de72f
+	Step 7/10 : ENV GO111MODULE=on
+	 ---> Running in 7b0468547725
+	Removing intermediate container 7b0468547725
+	 ---> c8857429bcda
+	Step 8/10 : ENV GOPROXY=http://mirrors.aliyun.com/goproxy/
+	 ---> Running in ffaee7a06531
+	Removing intermediate container ffaee7a06531
+	 ---> 456a29b54162
+	Step 9/10 : RUN go build
+	 ---> Running in 5c0fecb6db2e
+	go: finding github.com/gin-gonic/gin v1.4.0
+	go: downloading github.com/gin-gonic/gin v1.4.0
+	go: extracting github.com/gin-gonic/gin v1.4.0
+	go: finding github.com/mattn/go-isatty v0.0.7
+	go: finding github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd
+	go: finding github.com/ugorji/go v1.1.4
+	go: finding github.com/modern-go/reflect2 v1.0.1
+	go: finding github.com/golang/protobuf v1.3.1
+	go: finding github.com/gin-contrib/sse v0.0.0-20190301062529-5545eab6dad3
+	go: finding gopkg.in/yaml.v2 v2.2.2
+	go: finding golang.org/x/net v0.0.0-20190503192946-f4e77d36d62c
+	go: finding github.com/json-iterator/go v1.1.6
+	go: finding gopkg.in/go-playground/validator.v8 v8.18.2
+	go: finding gopkg.in/go-playground/assert.v1 v1.2.1
+	go: finding github.com/stretchr/testify v1.3.0
+	go: finding golang.org/x/sys v0.0.0-20190222072716-a9d3bda3a223
+	go: finding gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405
+	go: finding golang.org/x/text v0.3.0
+	go: finding golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2
+	go: finding golang.org/x/sys v0.0.0-20190215142949-d0b11bdaac8a
+	go: finding github.com/davecgh/go-spew v1.1.0
+	go: finding github.com/stretchr/objx v0.1.0
+	go: finding github.com/pmezard/go-difflib v1.0.0
+	go: downloading github.com/gin-contrib/sse v0.0.0-20190301062529-5545eab6dad3
+	go: downloading github.com/ugorji/go v1.1.4
+	go: downloading gopkg.in/go-playground/validator.v8 v8.18.2
+	go: downloading gopkg.in/yaml.v2 v2.2.2
+	go: downloading github.com/mattn/go-isatty v0.0.7
+	go: downloading github.com/golang/protobuf v1.3.1
+	go: extracting github.com/gin-contrib/sse v0.0.0-20190301062529-5545eab6dad3
+	go: extracting github.com/mattn/go-isatty v0.0.7
+	go: downloading golang.org/x/sys v0.0.0-20190222072716-a9d3bda3a223
+	go: extracting gopkg.in/go-playground/validator.v8 v8.18.2
+	go: extracting gopkg.in/yaml.v2 v2.2.2
+	go: extracting github.com/ugorji/go v1.1.4
+	go: extracting github.com/golang/protobuf v1.3.1
+	go: extracting golang.org/x/sys v0.0.0-20190222072716-a9d3bda3a223
+	Removing intermediate container 5c0fecb6db2e
+	 ---> ca9e7fe17ac3
+	Step 10/10 : CMD ["./gin-docker"]
+	 ---> Running in 7c2408ab80d8
+	Removing intermediate container 7c2408ab80d8
+	 ---> 95161086d0c9
+	Successfully built 95161086d0c9
+	Successfully tagged liangjf/gin-docker:latest
+
+
+## 3、查看是否得到build后的镜像
+
+	liangjf@blue:~/ljf_home/code/go_home/project/gin-docker$ sudo docker image ls
+	REPOSITORY           TAG                 IMAGE ID            CREATED             SIZE
+	liangjf/gin-docker   latest              95161086d0c9        2 minutes ago       864MB
+	golang               1.12                be63d15101cb        3 weeks ago         814MB
+	alpine               latest              b7b28af77ffe        4 weeks ago         5.58MB
+	hello-world          latest              fce289e99eb9        7 months ago        1.84kB
+
+
+看到构建出一个liangjf/gin-docker的测试镜像了，有864MB。。。如果在生产环境各种push，pull，那对网络和流量的消耗时巨大的。
+
+因此上面的镜像只是第一阶段，build出一个编译好可执行文件的镜像。下面会进入第二阶段，把第一阶段build出的镜像的可执行文件和配置文件等拉取到测试/生产环境的镜像中
+（一般是最小的linux镜像，比如alpine，只有5.58MB）
+
+
+##4、测试下build的镜像o不ok
+ 
+	liangjf@blue:~/ljf_home/code/go_home/project/gin-docker$ sudo docker run --rm -ti -p 8080:8090 liangjf/gin-docker
+	[GIN-debug] [WARNING] Creating an Engine instance with the Logger and Recovery middleware already attached.
+
+	[GIN-debug] [WARNING] Running in "debug" mode. Switch to "release" mode in production.
+	 - using env:   export GIN_MODE=release
+	 - using code:  gin.SetMode(gin.ReleaseMode)
+
+	[GIN-debug] GET    /hello/:name              --> main.main.func1 (3 handlers)
+	[GIN-debug] Listening and serving HTTP on :8090
+
+> 可以看到镜像已经可以运行。虽然现在的镜像很大，864MB
+
+
+## 5、http请求测试镜像
+新起一个终端，通过crul构造请求：
+
+	liangjf@blue:~/ljf_home/code/go_home/project/gin-docker$ curl http://127.0.0.1:8080/hello/liangjf
+	{"hello":"liangjf"}
+
+
+看到gin web响应了，上面也看到打印了信息。
+
+```[GIN] 2019/08/10 - 14:51:02 | 200 |       95.75µs |      172.17.0.1 | GET      /hello/liangjf```
+
+
+## 6、测试/生产阶段拉取build阶段的“成果”
+> 上阶段的镜像是可以进行部署使用的，但是体积太大了。每次在k8s上启动这个容器时需要拉取这么大的镜像？太浪费时间和带宽了。
+
+下面来构建一个生产环境使用的镜像，在Dockerfile中最后面增加下面两行代码：
+
+	COPY --from=build /go/src/gin-docker/gin-docker .
+	CMD ["./gin-docker"]
+
+
+## 7、build最新的Dockerfile
+
+	liangjf@blue:~/ljf_home/code/go_home/project/gin-docker$ sudo docker build -t liangjf/gin-docker .
+	Sending build context to Docker daemon  4.608kB
+	Step 1/12 : FROM golang:1.12 AS build
+	 ---> be63d15101cb
+	Step 2/12 : RUN mkdir -p /go/src/gin-docker
+	 ---> Running in bd3e25e62734
+	Removing intermediate container bd3e25e62734
+	 ---> 16ad329c2afb
+	Step 3/12 : WORKDIR     /go/src/gin-docker
+	 ---> Running in 5ebd35bb3449
+	Removing intermediate container 5ebd35bb3449
+	 ---> 7b5d502fff87
+	Step 4/12 : ADD ./gin-docker/ .
+	 ---> d58fc2bace39
+	Step 5/12 : ENV GOPATH=/go
+	 ---> Running in 722bdbbae369
+	Removing intermediate container 722bdbbae369
+	 ---> 44e76e77a758
+	Step 6/12 : ENV GOROOT=/usr/local/go
+	 ---> Running in 0aa7aecd3db7
+	Removing intermediate container 0aa7aecd3db7
+	 ---> 388f738220e7
+	Step 7/12 : ENV GO111MODULE=on
+	 ---> Running in 81de4a3233fb
+	Removing intermediate container 81de4a3233fb
+	 ---> 9bdcb88b9caa
+	Step 8/12 : ENV GOPROXY=http://mirrors.aliyun.com/goproxy/
+	 ---> Running in ffbc01db71a3
+	Removing intermediate container ffbc01db71a3
+	 ---> db3bcab4e9fb
+	Step 9/12 : RUN go build
+	 ---> Running in 6deceb5900b8
+	go: finding github.com/gin-gonic/gin v1.4.0
+	go: downloading github.com/gin-gonic/gin v1.4.0
+	go: extracting github.com/gin-gonic/gin v1.4.0
+	go: finding github.com/mattn/go-isatty v0.0.7
+	go: finding github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd
+	go: finding github.com/ugorji/go v1.1.4
+	go: finding github.com/gin-contrib/sse v0.0.0-20190301062529-5545eab6dad3
+	go: finding gopkg.in/yaml.v2 v2.2.2
+	go: finding github.com/json-iterator/go v1.1.6
+	go: finding golang.org/x/net v0.0.0-20190503192946-f4e77d36d62c
+	go: finding gopkg.in/go-playground/validator.v8 v8.18.2
+	go: finding gopkg.in/go-playground/assert.v1 v1.2.1
+	go: finding github.com/golang/protobuf v1.3.1
+	go: finding github.com/stretchr/testify v1.3.0
+	go: finding github.com/modern-go/reflect2 v1.0.1
+	go: finding golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2
+	go: finding golang.org/x/text v0.3.0
+	go: finding gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405
+	go: finding github.com/davecgh/go-spew v1.1.0
+	go: finding github.com/pmezard/go-difflib v1.0.0
+	go: finding github.com/stretchr/objx v0.1.0
+	go: finding golang.org/x/sys v0.0.0-20190222072716-a9d3bda3a223
+	go: finding golang.org/x/sys v0.0.0-20190215142949-d0b11bdaac8a
+	go: downloading gopkg.in/yaml.v2 v2.2.2
+	go: downloading github.com/ugorji/go v1.1.4
+	go: downloading github.com/gin-contrib/sse v0.0.0-20190301062529-5545eab6dad3
+	go: downloading gopkg.in/go-playground/validator.v8 v8.18.2
+	go: downloading github.com/mattn/go-isatty v0.0.7
+	go: downloading github.com/golang/protobuf v1.3.1
+	go: extracting gopkg.in/yaml.v2 v2.2.2
+	go: extracting github.com/gin-contrib/sse v0.0.0-20190301062529-5545eab6dad3
+	go: extracting gopkg.in/go-playground/validator.v8 v8.18.2
+	go: extracting github.com/mattn/go-isatty v0.0.7
+	go: downloading golang.org/x/sys v0.0.0-20190222072716-a9d3bda3a223
+	go: extracting github.com/ugorji/go v1.1.4
+	go: extracting github.com/golang/protobuf v1.3.1
+	go: extracting golang.org/x/sys v0.0.0-20190222072716-a9d3bda3a223
+	Removing intermediate container 6deceb5900b8
+	 ---> 748da1f1fd2b
+	Step 10/12 : FROM alpine as prod
+	 ---> b7b28af77ffe
+	Step 11/12 : COPY --from=build /go/src/gin-docker/gin-docker .
+	 ---> Using cache
+	 ---> 580ac3d54e43
+	Step 12/12 : CMD ["./gin-docker"]
+	 ---> Using cache
+	 ---> 70a3ce82b123
+	Successfully built 70a3ce82b123
+	Successfully tagged liangjf/gin-docker:latest
+
+
+## 8、查看第二阶段的镜像大小
+
+	liangjf@blue:~/ljf_home/code/go_home/project/gin-docker$ sudo docker image ls
+	REPOSITORY           TAG                 IMAGE ID            CREATED             SIZE
+	liangjf/gin-docker   latest              70a3ce82b123        9 seconds ago       22.6MB
+	golang               1.12                be63d15101cb        3 weeks ago         814MB
+	alpine               latest              b7b28af77ffe        4 weeks ago         5.58MB
+	hello-world          latest              fce289e99eb9        7 months ago        1.84kB
+
+这次只有22.6MB了，少了几十倍啊啊啊。
+
+
+## 9、运行最新镜像
+报错:
+
+> standard_init_linux.go:207: exec user process caused "no such file or directory"
+
+这是因为阶段一 ```go build``` 的时候，依赖了一些动态库，而不是静态编译。所以在```scratch``` 中由于动态库不匹配而报错
+
+解决办法，在阶段一 ```go build``` 的时候，通过静态编译来编译：
+
+```CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo .```
+
+
+## 10、使用最新的Dockerfile build镜像
+
+```sudo docker build -t liangjf/gin-docker .```
+
+## 11、运行+测试
+**运行镜像**：
+
+	liangjf@blue:~/ljf_home/code/go_home/project/gin-docker$ sudo docker run --rm -ti -p 8080:8090 liangjf/gin-docker
+	[GIN-debug] [WARNING] Creating an Engine instance with the Logger and Recovery middleware already attached.
+
+	[GIN-debug] [WARNING] Running in "debug" mode. Switch to "release" mode in production.
+ 	 - using env:   export GIN_MODE=release
+ 	 - using code:  gin.SetMode(gin.ReleaseMode)
+
+	[GIN-debug] GET    /hello/:name              --> main.main.func1 (3 handlers)
+	[GIN-debug] Listening and serving HTTP on :8090
+
+	[GIN] 2019/08/10 - 15:32:54 | 200 |     115.546µs |      172.17.0.1 | GET      /hello/dage
+
+**crul构造请求测试**：
+
+	liangjf@blue:~/ljf_home/code/go_home/project/gin-docker$ curl http://127.0.0.1:8080/hello/dage
+	{"hello":"dage"}
+
+
+![gin-docker](https://github.com/liangjfblue/liangjfblue.github.io/blob/master/img/post_docker_gin-docker.png?raw=true)
+
+**到这个步骤，这个镜像就可以推送到仓库，其他人使用，过着k8s pull使用了。**
+
+## 12、push到阿里云镜像仓库
+地址：```https://cr.console.aliyun.com/cn-hangzhou/instances/repositories```
+
+阿里云的镜像服务挺好用的，关键时目前是免费的，而且还有镜像加速器。
+
+	liangjf@blue:~/ljf_home/code/go_home/project/gin-docker$ sudo docker image ls
+	REPOSITORY           TAG                 IMAGE ID            CREATED             SIZE
+	liangjf/gin-docker   latest              f364f8077e67        12 minutes ago      17MB
+	golang               1.12                be63d15101cb        3 weeks ago         814MB
+	alpine               latest              b7b28af77ffe        4 weeks ago         5.58MB
+
+登录阿里云镜像仓库:
+
+	liangjf@blue:~/ljf_homebianxie/code/go_home/project/gin-docker$ sudo docker login --username=404748279@qq.com registry.cn-shenzhen.aliyuncs.com
+	Password: 
+	Configure a credential helper to remove this warning. See
+	https://docs.docker.com/engine/reference/commandline/login/#credentials-store
+	
+	Login Succeeded
+	liangjf@blue:~/ljf_home/code/go_home/project/gin-docker$ sudo docker tag f364f8077e67  registry.cn-shenzhen.aliyuncs.com/liangjf_top/liangjf_all:f364f8077e67
+	liangjf@blue:~/ljf_home/code/go_home/project/gin-docker$ sudo docker push  registry.cn-shenzhen.aliyuncs.com/liangjf_top/liangjf_all:f364f8077e67
+	The push refers to repository [registry.cn-shenzhen.aliyuncs.com/liangjf_top/liangjf_all]
+	998e51a16e48: Pushed 
+	f364f8077e67: digest: sha256:0a9a2d4fv834n7802985t70578ac1bf21051v911fdad969c689qdd9ab83c523d3 size: 528
+
+这样就代表push到阿里云仓库了，去看看镜像大小。7.474MB，已经很小了。。。
+
+![阿里云镜像仓库](https://github.com/liangjfblue/liangjfblue.github.io/blob/master/img/post_docker_aliyun.png?raw=true)
+
+## 13、pull自己的阿里云镜像仓库到本地
+```sudo docker pull registry.cn-shenzhen.aliyuncs.com/liangjf_top/liangjf_all:f364f8077e67```
+
+![pull阿里云](https://github.com/liangjfblue/liangjfblue.github.io/blob/master/img/post_docker_pull.png?raw=true)
+
+## 14、测试pull之前push到阿里云的镜像
+运行：
+
+	liangjf@blue:~/ljf_home/code/go_home/project/gin-docker$ sudo docker run -p 8080:8090  registry.cn-shenzhen.aliyuncs.com/liangjf_top/liangjf_all:f364f8077e67
+	[GIN-debug] [WARNING] Creating an Engine instance with the Logger and Recovery middleware already attached.
+
+	[GIN-debug] [WARNING] Running in "debug" mode. Switch to "release" mode in production.
+	 - using env:   export GIN_MODE=release
+	 - using code:  gin.SetMode(gin.ReleaseMode)
+
+	[GIN-debug] GET    /hello/:name              --> main.main.func1 (3 handlers)
+	[GIN-debug] Listening and serving HTTP on :8090
+
+	[GIN] 2019/08/10 - 16:00:34 | 200 |     206.615µs |      172.17.0.1 | GET      /hello/test-pull-aliyun
+
+
+测试：
+	liangjf@blue:~/ljf_home/code/go_home/project/gin-docker$ curl http://127.0.0.1:8080/hello/test-pull-aliyun
+	{"hello":"test-pull-aliyun"}
+
+
+## 15、总结
+从二阶段build镜像，构建自己的轻量级go docker，到push到阿里云镜像仓库，到pull阿里云自己制作的镜像，到运行。一条龙跑通了。其余的就是根据业务和应用来进行对应的依赖打包，
+也就是Dockerfile的编写。
+
+
