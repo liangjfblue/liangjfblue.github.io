@@ -1,0 +1,123 @@
+---
+layout:     post                  
+title:      go
+subtitle:   go websocket
+date:       2019-08-11          
+author:     Liangjf                  
+header-img: img/post_bg_83.jpg
+catalog: true                      
+tags:                       
+    - go
+---
+
+# go websocket(ws和wss)
+最近有个项目是小程序，后台，安卓三方通信的，后台与安卓是基于http接口和走推送系统；因为和小程序是有主动和被动交互的，因此选用websocket来实现，希望能够及时推送终端(安卓端)的信息给小程序。
+
+经过调研选用```github.com/gorilla/websocket```这个开源库。
+
+
+## 1、制作ssl证书
+- 如果没有购买的证书，测试用就自签ssl证书。我是直接用自己阿里云备案的域名的证书测试。
+
+
+## 2、nginx 反向代理配置（**ws.conf**）
+
+    upstream wss_svr {
+        server 127.0.0.1:8077 weight=1;
+    }
+
+    server {
+        listen       80;
+        server_name  test.ws.com;   #测试用，换为自己的域名
+
+        ssl on;
+        ssl_certificate /etc/nginx/keys/test-project/ws.pem;
+        ssl_certificate_key /etc/nginx/keys/test-project/ws.key;
+
+        ssl_session_cache shared:SSL:1m;
+        ssl_session_timeout  10m;
+        ssl_ciphers HIGH:!aNULL:!MD5;
+        ssl_prefer_server_ciphers on;
+
+        location / {
+            proxy_redirect off;
+            proxy_pass http://wss_svr; 
+            proxy_set_header Host $host;
+            proxy_set_header X-Real_IP $remote_addr;
+            proxy_set_header X-Forwarded-For $remote_addr:$remote_port;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;   # 升级协议头
+            proxy_set_header Connection upgrade;	#注意这里
+        }
+    }
+
+## 3、测试连接
+打开chrome浏览器，进入开发模式，打开浏览器控制台，在控制台输入：
+```var wss = new WebSocket("wss://test.ws.com/login")```
+
+如果不报错，提示undefined，就是成功连接啦。
+
+
+## 4、go websocket服务器
+
+使用的是 ```github.com/gorilla/websocket``` 这个库。直接对连接升级协议头，然后就可以进行双向通信。
+
+    func Login(c *gin.Context) {
+        var (
+            err error
+        )
+        conn, err := (&websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}).Upgrade(c.Writer, c.Request, nil)
+        if err != nil {
+            http.NotFound(c.Writer, c.Request)
+            logrus.Error("Upgrader websocket error : ", err)
+            return
+        }
+        defer func() {
+            logrus.Info("logout")
+            conn.Close()
+        }()
+        for {
+            _, data, err := conn.ReadMessage()
+            if err != nil {
+                logrus.Error("read data error : ", err)
+                return
+            }
+            logrus.Infof("%s connect, recv: %s", conn.RemoteAddr().String(), string(data))
+
+            if err = conn.WriteMessage(websocket.TextMessage, []byte("reply")); err != nil {
+                c.JSON(http.StatusInternalServerError, map[string]interface{}{"data":"write data error"})
+                return
+            }
+        }
+    }
+
+## 5、注意
+
+用到了 ```gorilla/websocket```，连接后，```gorilla/websocket``` 报错 ```websocket: the client is not using the websocket protocol:``` 。定位源代码，```server.go``` 文件的 ```Upgrade ```函数
+
+    func (u *Upgrader) Upgrade(w http.ResponseWriter, r *http.Request, responseHeader http.Header) (*Conn, error) {
+        const badHandshake = "websocket: the client is not using the websocket protocol: "
+
+        if !tokenListContainsValue(r.Header, "Connection", "upgrade") {
+            return u.returnError(w, r, http.StatusBadRequest, badHandshake+"'upgrade' token not found in 'Connection' header")
+        }
+
+        //...
+    }
+
+ 发现```header```中```connection```部分的值为 ```"upgrade"```，多了一对引号，导致```http协议```升级```wss```失败。
+ 
+ 这个是因为在 ```nginx``` 配置文件中写成了``` proxy_set_header Connection "upgrade"; ```
+ 
+相当于在这行代码判断出错：
+``` if !tokenListContainsValue(r.Header, "Connection", "upgrade") ```
+
+ 因为由于```nginx```配置反向代理时是
+ 
+``` proxy_set_header Connection "upgrade";```
+ 
+ 所以那行代码相当于
+ 
+```""upgrade""``` 和 ```gorilla/websocket``` 的 ```"upgrade" ```比较。肯定会报错，所以升级失败了。
+ 
+解决办法就是删除引号即可。

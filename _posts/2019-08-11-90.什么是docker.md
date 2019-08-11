@@ -1,0 +1,131 @@
+---
+layout:     post                  
+title:      docker
+subtitle:   什么是容器
+date:       2019-08-11          
+author:     Liangjf                  
+header-img: img/post_bg_81.jpg
+catalog: true                      
+tags:                       
+    - docker
+---
+
+# 什么是容器？
+
+公司开始上 ```docker``` 和 ```k8s``` 了，虽然之前接触过，但是还没有真正使用的，因此，趁着这个周末打台风就不出门了，在家捣鼓捣鼓吧。哈哈~~
+
+于是去[docker官网]: ```https://www.docker.com/resources/what-container```
+
+溜了一圈，熟悉下docker的定义，名词，实现原理等，并自己弄了个```gin```+```docker```的实战。（我喜欢用 ```gin``` ，因为很符合 ```go``` 的设计理念，简约却实用）
+
+
+## 定义
+
+**容器** 将软件打包成标准化的单元，用于开发、交付和部署。
+
+
+一看到三个词：开发，交付，部署。就觉得很熟悉，这不就是一个项目的声明流程吗。
+
+**容器** 是一个标准的软件单元，它将代码及其所有依赖项打包在一起形成一个独立但麻雀虽小五脏俱全的“包裹”，可以方便快速的从一台机器拷贝到另外一台机器运行。```Docker```容器``` image``` 是一个轻量级的、独立的、可执行的软件包，包含运行应用程序所需的一切:代码、运行时环境(依赖)、系统工具、系统库libs和配置文件。
+
+
+## 组件
+
+```docker``` 会涉及到下面几个重要的组件：
+
+- 镜像。```image```
+
+- 容器。```container ```
+
+- 仓库。```register```
+
+- 客户端。```docker client```
+
+- 服务端。```domain server```
+
+- docker主机。```Host```
+
+  
+镜像（```image```）是一个静态文件，是由我们把 ```application``` 运行时的可执行文件，运行时所需依赖，配置文件等打入 ```image``` ，并且启动运行在容器（```container``` ）时，才能对外提供服务。
+
+
+## Docker Engine
+
+镜像能够运行成为容器是因为 ```docker engine```。```docker引擎```是整个```docker```提供服务的核心。其包括以下几个部分：
+
+- ```Docker Daemon``` — ```docker``` 的守护进程，属于C/S中的server
+- ```Docker REST API``` — ```docker daemon```向外暴露的REST 接口
+- ```Docker CLI``` — ```docker``` 向外暴露的命令行接口（Command Line API）
+
+![Docker Engine组成](https://github.com/liangjfblue/liangjfblue.github.io/blob/master/img/post_docker_2.png?raw=true)
+
+```docker cli``` 是我们用于发送命令的客户端程序，我们发送的命令其实就是请求Docker REST API的接口功能。
+
+```Daemon```  ```docker host```上的守护服务程序会控制，监控，管理整个```docker```的功能。
+
+
+```image``` 在 ```Docker``` 引擎上运行时成为容器。容器化后的程序可忽略底层机器架构的差异，可同时运行在```linux```或```windwos```下。因为容器将软件与其环境隔离开来，并确保软件能够一致地工作。
+
+
+**Docker Engine** 是容器运行时的“核心处理器”，可运行在各种 ```Linux (CentOS、Debian、Fedora、Oracle Linux、RHEL、SUSE和Ubuntu)``` 和```Windows Server```操作系统。```Docker```创建了简单的工具和通用的打包方法，将所有应用程序依赖项打包到一个容器中，然后在 **Docker Engine** 上运行。**Docker Engine**  使容器化应用程序能够在任何基础设施上一致地在任何地方运行，为开发人员和操作团队解决了“依赖地狱”，并消除了机器差异。
+
+![Docker Engine](https://github.com/liangjfblue/liangjfblue.github.io/blob/master/img/post_docker_1.png?raw=true)
+
+运行在**Docker Engine** 上的 Docker容器:
+
+- 标准：```Docker ```为容器创建了行业标准，可以移植到任何地方。
+
+- 轻量级：容器共享机器的OS系统内核，因此不需要每个应用程序都使用OS，从而提高服务器效率，降低服务器和许可成本。
+- 安全：应用程序在容器中更安全，```Docker``` 提供业界最强的默认隔离功能。
+
+![容器化](https://github.com/liangjfblue/liangjfblue.github.io/blob/master/img/post_docker_4.png?raw=true)
+
+
+```docker``` 容器可以运行在基本所有的通用平台上：```linux```，```windows，数据中心```，云平台，无服务化等。这是得益于```docker```的开源和云原生的趋势和火爆，```golang```的快速发展。有这些基础设施，再加上开源社区的贡献（除了官方的容器，开发者能自己上传容器到```docker hub```供其他人使用），大大推广了```docker```容器技术。
+
+
+## docker容器和VM虚拟机的比较
+
+```docker```容器和VM虚拟机具有类似的**资源隔离**和**调度优势**。但容器是针**对操作系统虚拟化**而不是硬件。因此容器更加便携和高效。
+
+![docker容器](https://github.com/liangjfblue/liangjfblue.github.io/blob/master/img/post_docker_5.png?raw=true)
+
+![VM虚拟机](https://github.com/liangjfblue/liangjfblue.github.io/blob/master/img/post_docker_6.png?raw=true)
+
+
+开源清晰的看到，容器是基于操作系统来虚拟的，一台机器上的所有容器共享机器的内核。而vm虚拟机是对硬件的虚拟，各自拥有自己的操作系统。
+
+
+**容器的优势：**
+
+- 每个容器都作为用户空间中的独立进程运行。容器比vm占用更少的空间(容器映像通常有几十mb大小)，可以处理更多的应用程序，并且需要更少的vm和操作系统。
+
+
+**虚拟机的劣势：**
+
+- 每个虚拟机包括一个操作系统的完整副本、应用程序、必要的二进制文件和库——占用数十个GBs。vm的启动速度也可能很慢。
+
+
+## 总结
+```docker``` 非常强大。```docker``` 是适应技术发展，和所需的一项技术，所以不要怂就是干，每个开发，运维，测试都应掌握的。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
