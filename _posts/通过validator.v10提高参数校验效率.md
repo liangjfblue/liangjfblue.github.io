@@ -1,0 +1,103 @@
+---
+layout:     post                  
+title:      validator.v10库提高参数校验效率
+subtitle:   validator.v10库提高参数校验效率
+date:       2020-04-26
+author:     Liangjf
+header-img: img/post_bg_20200426_1.jpg
+catalog: true                      
+tags:                       
+    - go
+---
+
+# 通过gopkg.in/go-playground/validator.v10提高参数校验效率
+
+## 😎修改前
+
+[proto.go]
+
+    type AddWorkOrder struct {
+        Order          string `json:"order" validate:"required" msg:"lost order param"`
+        Customer       uint   `json:"customer" validate:"required" msg:"lost customer param"`
+    }
+
+[pkg/verify/verify.go]
+
+    func Validate(v interface{}) error {
+        validate := validator.New()
+        validate.RegisterTagNameFunc(func(fld reflect.StructField) string {
+            name := strings.SplitN(fld.Tag.Get("json"), ",", 2)[0]
+            if name == "-" {
+                return ""
+            }
+            return name
+        })
+        return validate.Struct(v)
+    }
+
+
+出现错误error,打印:
+
+    Key: 'AddWorkOrder.customer' Error:Field validation for 'customer' failed on the 'required' tag
+    Key: 'AddWorkOrder.modelType' Error:Field validation for 'modelType' failed on the 'required' tag
+
+
+
+## 😎修改后
+
+    func Validate(v interface{}) error {
+        validate := validator.New()
+        validate.RegisterTagNameFunc(func(fld reflect.StructField) string {
+            name := strings.SplitN(fld.Tag.Get("json"), ",", 2)[0]
+            if name == "-" {
+                return ""
+            }
+            return "[" + name + "]" + " " + fld.Tag.Get("msg")
+        })
+        return validate.Struct(v)
+    }
+
+    func TranslateErr2MsgTag(err error) string {
+        for _, err := range err.(validator.ValidationErrors) {
+            return err.Field()
+        }
+        return err.Error()
+    }
+
+出现错误error,打印:
+
+    Key: 'AddWorkOrder.[order] lost order param' Error:Field validation for '[order] lost order param' failed on the 'required' tag
+    Key: 'AddWorkOrder.[customer] lost customer param' Error:Field validation for '[customer] lost customer param' failed on the 'required' tag
+
+
+
+web 请求时出现错误如下:
+
+    func (this *XXXController) AddWorkOrder() {
+        var (
+            err error
+            req AddWorkOrder
+        )
+
+        if err = json.Unmarshal(this.Ctx.Input.RequestBody, &req); err != nil {
+            log.GGLog().Error(err.Error())
+            this.Error("req param error")
+            return
+        }
+
+        if err = verify.Validate(req); err != nil {
+            log.GGLog().Error(err.Error())
+            this.Error(verify.TranslateErr2MsgTag(err))
+            return
+        }
+
+        this.Success(nil)
+    }
+
+
+返回结果：
+
+    {
+      "code": 0,
+      "msg": "[customer] lost customer param"
+    }
